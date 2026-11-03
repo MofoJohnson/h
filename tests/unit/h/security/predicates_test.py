@@ -146,6 +146,16 @@ class TestAnnotationPredicates:
 
         assert result == expected_result
 
+    @pytest.mark.parametrize("enabled", (True, False))
+    def test_annotation_admin_delete_enabled(self, annotation_context, enabled):
+        annotation_context.admin_delete_enabled = enabled
+
+        result = predicates.annotation_admin_delete_enabled(
+            sentinel.identity, annotation_context
+        )
+
+        assert result is enabled
+
     @pytest.mark.parametrize("is_deleted", (True, False))
     def test_annotation_live(self, annotation_context, is_deleted):
         annotation_context.annotation.deleted = is_deleted

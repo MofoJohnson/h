@@ -112,6 +112,11 @@ def annotation_not_hidden(_identity, context):
 
 
 @requires(annotation_found)
+def annotation_admin_delete_enabled(_identity, context):
+    return context.admin_delete_enabled
+
+
+@requires(annotation_found)
 def annotation_live(_identity, context):
     return not context.annotation.deleted
 

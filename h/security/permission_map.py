@@ -104,7 +104,17 @@ PERMISSION_MAP = {
     ],
     # The user who created the annotation always has the these permissions
     Permission.Annotation.UPDATE: [[p.annotation_live, p.annotation_created_by_user]],
-    Permission.Annotation.DELETE: [[p.annotation_live, p.annotation_created_by_user]],
+    Permission.Annotation.DELETE: [
+        [p.annotation_live, p.annotation_created_by_user],
+        # Admins can delete other people's shared annotations, if the
+        # `admin_annotation_delete` feature flag is on for them.
+        [
+            p.annotation_live,
+            p.annotation_shared,
+            p.user_is_admin,
+            p.annotation_admin_delete_enabled,
+        ],
+    ],
 }
 
 # Predicates can define parents which they need to be true before they are

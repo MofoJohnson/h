@@ -91,6 +91,28 @@ class TestIdentityPermitsIntegrated:
         identity.user.admin = True
         assert identity_permits(identity, None, Permission.AdminPage.HIGH_RISK)
 
+    @pytest.mark.parametrize(
+        "admin,enabled,shared,deleted,allowed",
+        (
+            (True, True, True, False, True),
+            (True, False, True, False, False),
+            (True, True, False, False, False),
+            (True, True, True, True, False),
+            (False, True, True, False, False),
+        ),
+    )
+    def test_admins_deleting_other_peoples_annotations(
+        self, factories, annotation, admin, enabled, shared, deleted, allowed
+    ):
+        annotation.shared = shared
+        annotation.deleted = deleted
+        identity = Identity.from_models(user=factories.User(admin=admin))
+        context = AnnotationContext(annotation, admin_delete_enabled=enabled)
+
+        result = identity_permits(identity, context, Permission.Annotation.DELETE)
+
+        assert bool(result) is allowed
+
     @pytest.fixture
     def user(self, factories, group):
         return factories.User(memberships=[GroupMembership(group=group)])

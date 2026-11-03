@@ -676,6 +676,42 @@ class TestDeleteAnnotation:
 
         assert res.status_code == 404
 
+    @pytest.mark.parametrize(
+        "query,status_code",
+        [
+            ("", 404),
+            ("?__feature__[admin_annotation_delete]=1", 200),
+        ],
+    )
+    def test_admins_can_delete_other_peoples_shared_annotations_if_the_flag_is_on(
+        self, app, annotation, admin_headers, query, status_code
+    ):
+        res = app.delete(
+            f"/api/annotations/{annotation.id}{query}",
+            headers=admin_headers,
+            expect_errors=True,
+        )
+
+        assert res.status_code == status_code
+
+    def test_admins_cant_delete_other_peoples_private_annotations(
+        self, app, private_annotation, admin_headers
+    ):
+        res = app.delete(
+            f"/api/annotations/{private_annotation.id}?__feature__[admin_annotation_delete]=1",
+            headers=admin_headers,
+            expect_errors=True,
+        )
+
+        assert res.status_code == 404
+
+    @pytest.fixture
+    def admin_headers(self, db_session, factories):
+        token = factories.DeveloperToken(user=factories.User(admin=True))
+        db_session.add(token)
+        db_session.commit()
+        return {"Authorization": f"Bearer {token.value}"}
+
 
 @pytest.fixture
 def annotation(db_session, factories):

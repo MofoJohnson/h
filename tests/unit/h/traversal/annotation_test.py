@@ -16,9 +16,20 @@ class TestAnnotationRoot:
             sentinel.annotation_id
         )
         AnnotationContext.assert_called_once_with(
-            annotation_read_service.get_annotation_by_id.return_value
+            annotation_read_service.get_annotation_by_id.return_value,
+            admin_delete_enabled=True,
         )
         assert context == AnnotationContext.return_value
+
+    @pytest.mark.parametrize("enabled", (True, False))
+    def test_getting_by_subscript_sets_admin_delete_enabled_from_the_feature_flag(
+        self, root, pyramid_request, enabled
+    ):
+        pyramid_request.feature.flags["admin_annotation_delete"] = enabled
+
+        context = root[sentinel.annotation_id]
+
+        assert context.admin_delete_enabled is enabled
 
     def test_getting_by_subscript_raises_KeyError_if_annotation_missing(
         self, root, annotation_read_service

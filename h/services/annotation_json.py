@@ -9,6 +9,7 @@ from h.security import Identity, identity_permits
 from h.security.permissions import Permission
 from h.services import MentionService
 from h.services.annotation_read import AnnotationReadService
+from h.services.feature import FeatureService
 from h.services.flag import FlagService
 from h.services.links import LinksService
 from h.services.user import UserService
@@ -27,6 +28,7 @@ class AnnotationJSONService:
         flag_service: FlagService,
         user_service: UserService,
         mention_service: MentionService,
+        feature_service: FeatureService,
         request: Request,
     ):
         """
@@ -37,6 +39,7 @@ class AnnotationJSONService:
         :param flag_service: FlagService instance
         :param user_service: UserService instance
         :param mention_service: MentionService instance
+        :param feature_service: FeatureService instance
         :param request: The current request
         """
         self._annotation_read_service = annotation_read_service
@@ -44,6 +47,7 @@ class AnnotationJSONService:
         self._flag_service = flag_service
         self._user_service = user_service
         self._mention_service = mention_service
+        self._feature_service = feature_service
         self._request = request
 
     def present(
@@ -107,6 +111,9 @@ class AnnotationJSONService:
         # The flagged value depends on whether this particular user has flagged
         model["flagged"] = self._flag_service.flagged(user=user, annotation=annotation)
 
+        if user and self._user_can_delete_as_admin(annotation, user):
+            model["permissions"]["delete"].append(user.userid)
+
         user_is_moderator = identity_permits(
             identity=Identity.from_models(user=user),
             context=AnnotationContext(annotation),
@@ -168,6 +175,24 @@ class AnnotationJSONService:
 
         return [self.present(annotation, user) for annotation in annotations]
 
+    def _user_can_delete_as_admin(self, annotation: Annotation, user: User) -> bool:
+        """Return whether `user` can delete `annotation` only because they're an admin."""
+        if not user.admin or user.userid == annotation.userid:
+            return False
+
+        return bool(
+            identity_permits(
+                identity=Identity.from_models(user=user),
+                context=AnnotationContext(
+                    annotation,
+                    admin_delete_enabled=self._feature_service.enabled(
+                        "admin_annotation_delete", user=user
+                    ),
+                ),
+                permission=Permission.Annotation.DELETE,
+            )
+        )
+
     @classmethod
     def _get_read_permission(cls, annotation):
         if not annotation.shared:
@@ -206,5 +231,6 @@ def factory(_context, request):
         flag_service=request.find_service(name="flag"),
         user_service=request.find_service(name="user"),
         mention_service=request.find_service(MentionService),
+        feature_service=request.find_service(name="feature"),
         request=request,
     )

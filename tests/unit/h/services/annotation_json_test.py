@@ -172,6 +172,58 @@ class TestAnnotationJSONService:
         elif moderation_status and shared:
             assert result["moderation_status"] == moderation_status.value
 
+    def test_present_adds_admins_to_the_delete_permission(
+        self,
+        service,
+        annotation,
+        user,
+        feature_service,
+        identity_permits,
+        Identity,
+        matchers,
+    ):
+        user.admin = True
+        identity_permits.return_value = True
+
+        result = service.present(annotation, user)
+
+        feature_service.enabled.assert_called_once_with(
+            "admin_annotation_delete", user=user
+        )
+        identity_permits.assert_any_call(
+            identity=Identity.from_models.return_value,
+            context=matchers.InstanceOf(
+                AnnotationContext,
+                annotation=annotation,
+                admin_delete_enabled=feature_service.enabled.return_value,
+            ),
+            permission=Permission.Annotation.DELETE,
+        )
+        assert result["permissions"]["delete"] == [annotation.userid, user.userid]
+
+    def test_present_doesnt_add_admins_to_delete_permission_if_not_permitted(
+        self, service, annotation, user, identity_permits
+    ):
+        user.admin = True
+        identity_permits.return_value = False
+
+        result = service.present(annotation, user)
+
+        assert result["permissions"]["delete"] == [annotation.userid]
+
+    @pytest.mark.parametrize("is_admin,is_author", [(False, False), (True, True)])
+    def test_present_skips_the_admin_delete_check(
+        self, service, annotation, user, feature_service, is_admin, is_author
+    ):
+        user.admin = is_admin
+        if is_author:
+            annotation.userid = user.userid
+
+        result = service.present(annotation, user)
+
+        feature_service.enabled.assert_not_called()
+        assert result["permissions"]["delete"] == [annotation.userid]
+
     def test_present_only_shows_moderation_to_moderators(
         self, service, annotation, user, identity_permits, Identity, matchers
     ):
@@ -260,6 +312,7 @@ class TestAnnotationJSONService:
         flag_service,
         user_service,
         mention_service,
+        feature_service,
         pyramid_request,
     ):
         return AnnotationJSONService(
@@ -268,6 +321,7 @@ class TestAnnotationJSONService:
             flag_service=flag_service,
             user_service=user_service,
             mention_service=mention_service,
+            feature_service=feature_service,
             request=pyramid_request,
         )
 
@@ -310,6 +364,7 @@ class TestFactory:
         links_service,
         user_service,
         mention_service,
+        feature_service,
     ):
         service = factory(sentinel.context, pyramid_request)
 
@@ -319,6 +374,7 @@ class TestFactory:
             flag_service=flag_service,
             user_service=user_service,
             mention_service=mention_service,
+            feature_service=feature_service,
             request=pyramid_request,
         )
         assert service == AnnotationJSONService.return_value
